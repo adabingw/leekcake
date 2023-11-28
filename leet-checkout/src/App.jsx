@@ -1,13 +1,16 @@
 // eslint-disable-next-line no-unused-vars
 import { useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import CLI from "./CLI"
 import './App.css'
 
 function App() {
-
   return (
-    <>
-      <h1 className="text-3xl font-bold underline italic">Vite + React</h1>
-    </>
+    <BrowserRouter>
+      <Routes>
+          <Route path="*" element={<CLI />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

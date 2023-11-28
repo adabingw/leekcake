@@ -6,6 +6,9 @@ export default {
   ],
   theme: {
     extend: {},
+    fontFamily: {
+      'Code': ['"JetBrains Mono"', 'sans-serif'] // Ensure fonts with spaces have " " surrounding it.
+    }
   },
   plugins: [],
 }

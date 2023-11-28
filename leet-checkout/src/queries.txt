@@ -1,0 +1,65 @@
+https://leetcode.com/graphql?query=query {
+  submissionDetails(submissionId: 1104155782) {
+    runtime
+    runtimeDisplay
+    runtimePercentile
+    runtimeDistribution
+    memory
+    memoryDisplay
+    memoryPercentile
+    memoryDistribution
+    code
+    timestamp
+    statusCode
+    user {
+      username
+      profile {
+        realName
+        userAvatar
+      }
+    }
+    lang {
+      name
+      verboseName
+    }
+    question {
+      questionId
+    }
+    notes
+    topicTags {
+      tagId
+      slug
+      name
+    }
+    runtimeError
+    compileError
+    lastTestcase
+  }
+}
+
+https://leetcode.com/graphql?query=query {
+ questionSubmissionList(
+    offset: 0,
+    limit: 20,
+    questionSlug: "diagonal-traverse-ii"
+  ) {
+    lastKey
+    hasNext
+    submissions {
+      id
+      title
+      titleSlug
+      status
+      statusDisplay
+      lang
+      langName
+      runtime
+      timestamp
+      url
+      isPending
+      memory
+      hasNotes
+      notes
+    }
+  }
+}

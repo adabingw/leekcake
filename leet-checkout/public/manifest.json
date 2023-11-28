@@ -12,7 +12,19 @@
     },
     "permissions": [
         "activeTab",
+        "cookies",
         "tabs",
-        "notifications"
-    ]    
+        "notifications",
+        "storage"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://*/*"],
+            "js": ["content.js"]
+        }
+    ],
+    "host_permissions": [
+        "https://leetcode.com/*",
+        "*://*/*"
+    ]
 }
