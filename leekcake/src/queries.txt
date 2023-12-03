@@ -1,0 +1,33 @@
+https://leetcode.com/graphql?query=query {
+  submissionDetails(submissionId: 1104155782) {
+    code
+    statusCode
+    user {
+      username
+    }
+    lang {
+      name
+    }
+    question {
+      questionId
+    }
+  }
+}
+
+https://leetcode.com/graphql?query=query {
+ questionSubmissionList(
+    offset: 0,
+    limit: 20,
+    questionSlug: "two-sum"
+  ) {
+    submissions {
+      id
+      title
+      titleSlug
+      statusDisplay
+      lang
+      langName
+      url
+    }
+  }
+}

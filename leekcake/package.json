@@ -1,8 +1,9 @@
 {
-  "name": "leet-checkout",
+  "name": "leekcake",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "proxy": "https://leetcode.com",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,7 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@apollo/client": "^3.8.8",
     "axios": "^1.6.2",
+    "graphql": "^16.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

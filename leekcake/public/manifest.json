@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "manifest_version": 3,
-    "name": "leet-checkout",
+    "name": "leekcake",
     "description": "checkout leetcode problems automatically in github",
     "action": {
         "default_popup": "index.html",
