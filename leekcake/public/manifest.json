@@ -15,7 +15,8 @@
         "cookies",
         "tabs",
         "notifications",
-        "storage"
+        "storage",
+        "identity"
     ],
     "content_scripts": [
         {

@@ -2,48 +2,10 @@ chrome.runtime.onInstalled.addListener(({reason}) => {
     // link to github auth
 });  
 
-chrome.tabs.onUpdated.addListener(async function(tabId, changeInfo, tab) {
-    if (changeInfo.status === 'complete') {
-        if (tab.url != null && tab.url != undefined && tab.url != '' && 
-            tab.url.includes("leetcode.com/problems")) {
-                let tabArray = tab.url.split('/')
-                if (tabArray[tabArray.length - 1] != 'submissions') {
-                    // chrome.notifications.create({
-                    //     type: 'basic',
-                    //     iconUrl: 'icon.jpg',
-                    //     title: `leet-checkout is tracking your question`,
-                    //     message: tab.url,
-                    //     priority: 1
-                    // });
-                    const response = await chrome.tabs.sendMessage(tabId, {
-                        context: "mod"
-                    });
-                    console.log(response);
-                }
-        }
-    }
-}); 
-
 function logCookie(cookie, key) {
     if (cookie) {
-        console.log(cookie.value);
-        // chrome.notifications.create({
-        //     type: 'basic',
-        //     iconUrl: 'icon.jpg',
-        //     title: `logging cookies`,
-        //     message: cookie.value,
-        //     priority: 1
-        // });
         chrome.storage.local.set({ [key]: cookie.value }).then(() => {
             console.log("Value is set");
-        });
-    } else {
-        chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icon.jpg',
-            title: `cookies not defined`,
-            message: "",
-            priority: 1
         });
     }
 }
@@ -71,10 +33,42 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
             });
             getActive.then(function(tabs) { return getCookie(tabs, 'LEETCODE_SESSION'); });
             getActive.then(function(tabs) { return getCookie(tabs, 'csrftoken'); });
-            const response = await chrome.tabs.sendMessage(tab.id, {
-                context: "mod"
-            });
-            console.log(response);
         }
     });
 });
+
+function handleMessage(request) {
+    if (request && request.closeWebPage === true && request.isSuccess === true) {
+        /* Set username */
+        // chrome.storage.local.set({ leethub_username: request.username },
+        //     () => {
+        //         window.localStorage.leethub_username = request.username;
+        //     },
+        // );
+    
+        /* Set token */
+        chrome.storage.local.set({ github_token: request.token }, () => {
+            window.localStorage[request.KEY] = request.token;
+        });
+    
+        /* Close pipe */
+        chrome.storage.local.set({ leetcake_pipe: false }, () => {
+            console.log('Closed pipe.');
+        });
+    
+        chrome.tabs.getSelected(null, function (tab) {
+            chrome.tabs.remove(tab.id);
+        });
+    
+        /* Go to onboarding for UX */
+        // const urlOnboarding = chrome.runtime.getURL('welcome.html');
+        // chrome.tabs.create({ url: urlOnboarding, active: true }); // creates new tab
+    } else if (request && request.closeWebPage === true && request.isSuccess === true) {
+        chrome.tabs.getSelected(null, function (tab) {
+            chrome.tabs.remove(tab.id);
+        });
+    }
+}
+  
+chrome.runtime.onMessage.addListener(handleMessage);
+  
