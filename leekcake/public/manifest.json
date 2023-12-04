@@ -8,8 +8,10 @@
         "default_title": "React Chrome Extension"
     },
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "background.js",
+        "type": "module"
     },
+    "minimum_chrome_version": "92",
     "permissions": [
         "activeTab",
         "cookies",
