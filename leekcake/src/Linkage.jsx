@@ -1,10 +1,14 @@
 /*global chrome*/
 import { useState, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 
 export default function Linkage() {
 
     const [repos, setRepos] = useState([])
     const [search, setSearch] = useState('')
+	const [repoIndex, setRepoIndex] = useState(0)
+	const [show, setShow] = useState(false)
+	const navigate = useNavigate();
 
     useEffect(() => {
         chrome.storage.local.get('github_token', (data) => {
@@ -16,7 +20,17 @@ export default function Linkage() {
 				const xhr = new XMLHttpRequest();
 				xhr.addEventListener('readystatechange', function () {
 					if (xhr.readyState === 4) {
+						console.log('status: ', xhr.readyState)
 						if (xhr.status === 200) {
+							chrome.storage.local.get('leekcake_repo', (data) => {
+								const repo = data.leekcake_repo;
+								if (repo == null || repo == undefined) {
+									// navigate to linkage page
+									setShow(false)
+								} else {
+									setShow(true)
+								}
+							});
 							getRepos(token)
 						} else if (xhr.status === 401) {
 							chrome.storage.local.set({ github_token: null }, () => {
@@ -45,11 +59,14 @@ export default function Linkage() {
 				xhr2.addEventListener('readystatechange', function () {
 					if (xhr2.readyState === 4) {
 						if (xhr2.status === 200) {
-                            console.log("method 1")
-							console.log(xhr2.responseText)
+							let repoList = []
                             for (var repo of JSON.parse(xhr2.responseText)) {
-                                console.log(`${repo['name']}`)
+								repoList.push({
+									name: repo['name'],
+									url: repo['html_url']
+								})
                             }
+							setRepos(repoList)
 						} else if (xhr2.status === 401) {
 							console.log("error getting repos")
 						}
@@ -62,18 +79,34 @@ export default function Linkage() {
 		});
     }
 
+	const submitRepo = () => {
+		localStorage.setItem('leekcake_repo', JSON.stringify(repos[repoIndex]));
+		chrome.storage.local.set({ leekcake_repo: JSON.stringify(repos[repoIndex]) }, () => {
+			console.log("leekcake repo set")
+        });
+		navigate('/terminal')
+	}
+
+	const handleBack = () => {
+		navigate('/terminal')
+	}
+
     return (
-        <div className="flex flex-col">
-            select repo to link to
+        <div className="flex flex-col justify-start align-top h-screen">
+			{show && <div onClick={() => handleBack()}>back</div>}
+			select repo to link to
             <input type="text" placeholder="or search for it" 
                 className="focus:outline-none px-3 py-2 bg-inherit text-orange-400" onChange={(e) => setSearch(e.target.value)}/>
-            <div>
+            <div className="justify-start">
                 {repos.map((value, index) => {
-                    return (
-                        <div>{value}</div>
-                    )
-                })}
+                    return (search == '' || value['name'].includes(search)) ?
+						<div className={repoIndex == index ? "text-orange-400 my-1 px-1" : "text-white my-1 px-1"} 
+							onClick={(e) => setRepoIndex(index)}>
+							{value['name']}
+						</div> : <div></div>
+				})}
             </div>
+			<div className="mt-3 rounded-lg border-orange-400" onClick={() => submitRepo()}>link</div>
         </div>
     )
 }

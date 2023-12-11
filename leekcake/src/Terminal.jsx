@@ -1,13 +1,19 @@
 /*global chrome*/
 import { useState, useEffect } from "react";
-import { gql, useQuery } from '@apollo/client';
+import { useNavigate } from 'react-router-dom';
+import { checkFetcher, gql, useQuery } from '@apollo/client';
 
-export default function CLI() {
+export default function Terminal() {
 
     const [link, setLink] = useState('');
     const [ext, setExt] = useState('.txt');
-    const [name, setName] = useState('');
+    const [question, setQuestion] = useState('');
     const [sub, setSub] = useState(0);
+    const [state, setState] = useState('init');
+    const [path, setPath] = useState('');
+    const [error, setError] = useState('');
+    const [warning, setWarning] = useState('');
+    const navigate = useNavigate();
 
     const languages = {
         'Python': '.py',
@@ -31,7 +37,9 @@ export default function CLI() {
         'Oracle': '.sql',
     };
 
-    // let url = `https://leetcode.com/graphql`;
+    /**
+     * getting list of submissions for a questionslug to get the submission id
+     */
     let GET_SUB_LIST = gql`
         query submissionList($questionSlug: String!) {
             questionSubmissionList(
@@ -52,6 +60,9 @@ export default function CLI() {
         }
     `
 
+    /**
+     * take the latest submission and use its id to get the submission details
+     */
     let GET_SUB = gql`
         query submissionDetails($submissionId: Int!) {
             submissionDetails(submissionId: $submissionId) {
@@ -75,11 +86,14 @@ export default function CLI() {
         variables: listVariables, 
         refetch: listRefetch 
     } = useQuery(GET_SUB_LIST, {
-        variables: { questionSlug: name },
+        variables: { questionSlug: question },
         enabled: false, // disable this query from automatically running
         onError: ({ networkError, graphQLErrors }) => {
             console.log('graphQLErrors', graphQLErrors)
             console.log('networkError', networkError)
+            if (graphQLErrors) {
+                setError(`error fetching question. might not be a valid leetcode question`);
+            }
         }
     });
 
@@ -95,10 +109,30 @@ export default function CLI() {
         onError: ({ networkError, graphQLErrors }) => {
             console.log('graphQLErrors', graphQLErrors)
             console.log('networkError', networkError)
+            if (graphQLErrors) {
+                setError(`error fetching question. might not be a valid leetcode question`);
+            }
         }
     });
 
+    // if user clears console, set path to filename (default)
     useEffect(() => {
+        if (path.length == 0) {
+            let directory = question + ext
+            setPath(directory)
+        }
+        if (path.length != 0) {
+            checkfile()
+        }
+    }, [path])
+
+    // when user puts in link, stitch link to get problem name
+    useEffect(() => {
+        if (!link.includes('leetcode.com/problems')) {
+            setError('not a valid leetcode link')
+        } else {
+            setError('')
+        }
         let linkArr = link.split('/').filter(x => x);
         let questionSlug = ""
         for (var i = 0; i < linkArr.length; i++) {
@@ -106,55 +140,129 @@ export default function CLI() {
                 questionSlug = linkArr[i + 1]
             }
         }
-        setName(questionSlug)
+        setQuestion(questionSlug)
+        if (path == '') {
+            setPath(questionSlug)
+        }
+        if (questionSlug.length != 0) {
+            fetchSubmissionList(questionSlug)
+        }
     }, [link])
 
     useEffect(() => {
-        console.log(`new submission data: ${JSON.stringify(subData)}`)
+        if (state == 'submit') {
+            fetchSubmissionList(question)
+        } else {
+            console.log(`new state: ${state}`)
+        }
+    }, [state])
 
+    useEffect(() => {
+        if (listLoading) console.log(`loading`);
+        if (listError) setError(`error fetching question`);
+        if (!listData) console.log("listData null")
+        else {
+            if (listData["questionSubmissionList"] && listData["questionSubmissionList"]["submissions"]) {
+                if (listData["questionSubmissionList"]["submissions"].length != 0) {
+                    let submission = listData["questionSubmissionList"]["submissions"][0]
+                    if (submission["statusDisplay"] == "Accepted") {
+                        let lang = submission["langName"]
+                        setExt(languages[lang])
+                        setPath(`${path}${languages[lang]}`)
+                        checkfile()
+                        if (state == 'submit') {
+                            let submissionId = submission["id"]
+                            setSub(submissionId)
+                            subRefetch({
+                                submissionId: submissionId
+                            })
+                        }
+                    } else {
+                        // latest submission was not accepted
+                    }
+                }
+            } else {
+                // smth went wrong
+                setError(`error fetching question`);
+            }
+        }
+    }, [listData])
+
+    useEffect(() => {
         if (subLoading) console.log(`loading`);
         if (subError) console.log(`error fetching ${subError} with variables ${JSON.stringify(subVariables)}`);
         if (subData == undefined || subData == null) console.log("subData null")
         else {
-            console.log("SUB DATA: ", subData)
             if (subData["submissionDetails"] != null && subData["submissionDetails"]["code"].length != 0) {
                 let code = subData["submissionDetails"]["code"]
-                console.log(`code: ${code}`)
+                if (code != null) {
+                    uploadGit(
+                        window.btoa(encodeURIComponent(code)),
+                        `${question}${ext} commit`,
+                        () => {
+                            console.log("code uploaded!")
+                        },
+                    );
+                }
             } else {
                 // smth went wrong
             }
         }
     }, [subData])
 
-    useEffect(() => {
-        if (listLoading) console.log(`loading`);
-        if (listError) console.log(`error fetching ${listError} with variables ${JSON.stringify(listVariables)}`);
-        if (listData == undefined || listData == null) console.log("subData null")
-        else {
-            console.log("DATA: ", listData)
-            if (listData["questionSubmissionList"] != null && listData["questionSubmissionList"]["submissions"].length != 0) {
-                let submission = listData["questionSubmissionList"]["submissions"][0]
-                console.log(`submission: ${JSON.stringify(submission)}`)
-                if (submission["statusDisplay"] == "Accepted") {
-                    let lang = submission["langName"]
-                    setExt(languages[lang])
-                    let submissionId = submission["id"]
-                    setSub(submissionId)
-                    console.log(`submission id: ${submissionId}`)
-                    subRefetch({
-                        submissionId: submissionId
-                    })
-                } else {
-                    // latest submission was not accepted
-                }
-            } else if (listData["questionSubmissionList"]["submissions"].length != 0) {
-                // no subs
+    /* Try to get file to see if it exists */
+    const checkfile = () => {
+        chrome.storage.local.get(["github_username"]).then((result) => {
+            let username = result.github_username;
+            if (username) {
+                console.log(`github user ${username}`)
+                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                    let repo = JSON.parse(result.leekcake_repo);
+                    if (repo) {
+                        console.log(`github repo ${repo}`)
+                        chrome.storage.local.get(["github_token"]).then((result) => {
+                            let token = result.github_token;
+                            if (token) {
+                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
+                                console.log(`url: ${URL}`)
+                            
+                                const xhr = new XMLHttpRequest();
+                                xhr.addEventListener('readystatechange', function () {
+                                if (xhr.readyState === 4) {
+                                    if (xhr.status === 200 || xhr.status === 201) {
+                                        // file exists
+                                        console.log(`${path} exists`)
+                                        setWarning(`warning: file already exists. if you submit, you'll be 
+                                                    overwriting the existing file. \n
+                                                    consider using a different name.`)
+                                        return true
+                                    } else if (xhr.status == 404) {
+                                        // file doesn't exist
+                                        setWarning('')
+                                        return false
+                                    }
+                                }
+                                });
+                                xhr.open('GET', URL, true);
+                                xhr.setRequestHeader('Authorization', `token ${token}`);
+                                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                                xhr.send();
+                            } else {
+                                // smth went wrong
+                            }
+                        })
+                    } else {
+                        // smth went wrong
+                    }
+                })
             } else {
                 // smth went wrong
             }
-        }
-    }, [listData])
+        })
+    }
 
+
+    /* start question fetching after submitting */
     const fetchSubmissionList = async (questionSlug) => {
         chrome.storage.local.get(["LEETCODE_SESSION"]).then((result) => {
             document.cookie = `LEETCODE_SESSION=${result["LEETCODE_SESSION"]}; SameSite=None; Secure; HttpOnly`;
@@ -174,6 +282,9 @@ export default function CLI() {
         else {
             let linkArr = link.split('/').filter(x => x);
             let questionSlug = ""
+            if (path[path.length - 1] != '/') {
+                setPath(path + '/')
+            }
             for (var i = 0; i < linkArr.length; i++) {
                 if (linkArr[i] == 'problems' && linkArr.length > i + 1) {
                     questionSlug = linkArr[i + 1]
@@ -184,19 +295,202 @@ export default function CLI() {
         }
     }
 
+    const handleSubmit = () => {
+        setState('submit')
+    }
+
+    const handeRelink = () => {
+        navigate('/linkage')
+    }
+
+    const handlePathChange = (p) => {
+        setPath(p)
+        if (p.length == 0) return;
+        if (p[p.length - 1] == '/' || p[0] == '/') {
+            setError('error: invalid file name')
+        } else {
+            setError('')
+        }
+
+        let parr = p.split('/').filter(x => x);
+        console.log(parr)
+        var re = new RegExp(/^[\w\-\.]+$/);
+        for (var i = 0; i < parr.length; i++) {
+            if (!re.test(parr[i])) {
+                setError('error: invalid folder/file name or smth')
+            }
+        }
+        // valid names: ^[\w-\.]+$
+    }
+
+    /* Main function for updating code to GitHub repo, and callback cb is called if success */
+	const update = (code, sha, msg, cb = undefined,) => {
+        chrome.storage.local.get(["github_username"]).then((result) => {
+            let username = result.github_username;
+            if (username) {
+                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                    let repo = JSON.parse(result.leekcake_repo);
+                    if (repo) {
+                        chrome.storage.local.get(["github_token"]).then((result) => {
+                            let token = result.github_token;
+                            if (token) {
+                                const URL = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
+                                let data = {
+                                    message: msg,
+                                    content: code,
+                                    sha,
+                                };
+                                data = JSON.stringify(data);
+                        
+                                const xhr = new XMLHttpRequest();
+                                xhr.addEventListener('readystatechange', function () {
+                                if (xhr.readyState === 4) {
+                                    if (xhr.status === 200 || xhr.status === 201) {
+                                        const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
+                                
+                                        chrome.storage.local.get('stats', (data2) => {
+                                            let { stats } = data2;
+                                            if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
+                                                stats = {};
+                                                stats.sha = {};
+                                            }
+                                            stats.sha[path] = updatedSha; // update sha key.
+                                            chrome.storage.local.set({ stats }, () => {
+                                                console.log(`committed ${path} to github`,);
+                                                if (cb !== undefined) {
+                                                    cb();
+                                                }
+                                            });
+                                        });
+                                    }
+                                }
+                                });
+                                xhr.open('PUT', URL, true);
+                                xhr.setRequestHeader('Authorization', `token ${token}`);
+                                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                                xhr.send(data);
+                            } else {
+                                // smth went wrong
+                            }
+                        })
+                    } else {
+                        // smth went wrong
+                    }
+                })
+            } else {
+                // smth went wrong
+            }
+        })
+	};
+
+    /* Main function for uploading code to GitHub repo, and callback cb is called if success */
+	const upload = (code, sha, msg, cb = undefined,) => {
+        chrome.storage.local.get(["github_username"]).then((result) => {
+            let username = result.github_username;
+            if (username) {
+                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                    let repo = JSON.parse(result.leekcake_repo);
+                    if (repo) {
+                        chrome.storage.local.get(["github_token"]).then((result) => {
+                            let token = result.github_token;
+                            if (token) {
+                                const URL = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
+                                let data = {
+                                    message: msg,
+                                    content: code,
+                                    sha,
+                                };
+                                data = JSON.stringify(data);
+                          
+                                const xhr = new XMLHttpRequest();
+                                xhr.addEventListener('readystatechange', function () {
+                                if (xhr.readyState === 4) {
+                                    if (xhr.status === 200 || xhr.status === 201) {
+                                        const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
+                                
+                                        chrome.storage.local.get('stats', (data2) => {
+                                            let { stats } = data2;
+                                            if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
+                                                stats = {};
+                                                stats.sha = {};
+                                            }
+                                            stats.sha[path] = updatedSha; // update sha key.
+                                            chrome.storage.local.set({ stats }, () => {
+                                                console.log(`committed ${path} to github`,);                                
+                                                if (cb !== undefined) {
+                                                    cb();
+                                                }
+                                            });
+                                        });
+                                    }
+                                }
+                                });
+                                xhr.open('PUT', URL, true);
+                                xhr.setRequestHeader('Authorization', `token ${token}`);
+                                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                                xhr.send(data);
+                            } else {
+                                // smth went wrong
+                            }
+                        })
+                    } else {
+                        // smth went wrong
+                    }
+                })
+            } else {
+                // smth went wrong
+            }
+        })
+	};
+  
+	function uploadGit(code, msg, cb = undefined) {
+        if (token) {
+            chrome.storage.local.get('stats', (s) => {
+                const { stats } = s;
+                let sha = null;
+                if (
+                    stats !== undefined &&
+                    stats.sha !== undefined &&
+                    stats.sha[path] !== undefined
+                ) {
+                    sha = stats.sha[path];
+                }
+
+                if (repo) {
+                    /* Upload to git. */
+                    upload(
+                        code,
+                        sha,
+                        msg,
+                        cb,
+                    );
+                }
+            });
+        }
+	}
+
     return (
         <div className="flex flex-col">
+            <div className="flex flex-row justify-between">
+                <div onClick={() => console.log("logout")}> logout </div>
+                <div onClick={() => handeRelink()}> relink repo </div>
+            </div>
             enter link to leetcode question
             <input type="text" placeholder="leetcode q" 
                 className="focus:outline-none px-3 py-2 bg-inherit text-orange-400" onChange={(e) => setLink(e.target.value)}/>
             {link != '' &&             
             <div className="flex flex-col justify-center">
-            enter folder and file name to commit to. empty is default.
-            <input type="text" placeholder={`src/${name}${ext}`} 
-                className="focus:outline-none px-3 py-2 bg-inherit" onKeyDown={(e) => handleKeyDown(e)}/>
-            {/* { data } */}
+                enter folder and file name to commit to. empty is default.
+                <input type="text" placeholder={`${path}`} 
+                    className="focus:outline-none px-3 py-2 bg-inherit" onKeyDown={(e) => handleKeyDown(e)}
+                        onChange={(e) => handlePathChange(`${e.target.value}`)}
+                    />
+                <div className="text-red-500">{error}</div>
+                <div className="text-orange-500">{warning}</div>
             </div>
+            
             }
+            
         </div>
     )
 }
