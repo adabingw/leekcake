@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { checkFetcher, gql, useQuery } from '@apollo/client';
+import Button from "./Button";
 
 export default function Terminal() {
 
@@ -282,16 +283,14 @@ export default function Terminal() {
         else {
             let linkArr = link.split('/').filter(x => x);
             let questionSlug = ""
-            if (path[path.length - 1] != '/') {
-                setPath(path + '/')
-            }
             for (var i = 0; i < linkArr.length; i++) {
                 if (linkArr[i] == 'problems' && linkArr.length > i + 1) {
                     questionSlug = linkArr[i + 1]
                 }
             }
-            setName(questionSlug)
-            fetchSubmissionList(questionSlug)
+            setQuestion(questionSlug)
+            handleSubmit()
+            // fetchSubmissionList(questionSlug)
         }
     }
 
@@ -470,10 +469,10 @@ export default function Terminal() {
 	}
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col h-fit max-h-fit">
             <div className="flex flex-row justify-between">
-                <div onClick={() => console.log("logout")}> logout </div>
-                <div onClick={() => handeRelink()}> relink repo </div>
+                <Button onClick={() => console.log("logout")} text="logout" />
+                <Button onClick={() => handeRelink()} text="relink repo" />
             </div>
             enter link to leetcode question
             <input type="text" placeholder="leetcode q" 

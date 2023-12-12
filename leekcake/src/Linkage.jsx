@@ -1,6 +1,7 @@
 /*global chrome*/
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
+import Button from "./Button";
 
 export default function Linkage() {
 
@@ -92,12 +93,15 @@ export default function Linkage() {
 	}
 
     return (
-        <div className="flex flex-col justify-start align-top h-screen">
-			{show && <div onClick={() => handleBack()}>back</div>}
+        <div className="flex flex-col justify-center align-top">
+			<div className="flex flex-row justify-between">
+				{show && <Button onClick={() => handleBack()} text="back" />}
+				<Button onClick={() => submitRepo()} text="link repo"/>
+            </div>
 			select repo to link to
             <input type="text" placeholder="or search for it" 
                 className="focus:outline-none px-3 py-2 bg-inherit text-orange-400" onChange={(e) => setSearch(e.target.value)}/>
-            <div className="justify-start">
+            <div className="flex flex-col justify-center m-auto">
                 {repos.map((value, index) => {
                     return (search == '' || value['name'].includes(search)) ?
 						<div className={repoIndex == index ? "text-orange-400 my-1 px-1" : "text-white my-1 px-1"} 
@@ -106,7 +110,6 @@ export default function Linkage() {
 						</div> : <div></div>
 				})}
             </div>
-			<div className="mt-3 rounded-lg border-orange-400" onClick={() => submitRepo()}>link</div>
         </div>
     )
 }

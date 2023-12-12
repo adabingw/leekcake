@@ -1,3 +1,5 @@
+import Button from "./Button";
+
 const oAuth2 = {
     init() {
         this.KEY = 'github_token';
@@ -26,10 +28,11 @@ const oAuth2 = {
 
 function Auth() {
     return (
-        <div onClick={() => oAuth2.begin()}>
-            authenticate github
-        </div>
+        <Button onClick={() => oAuth2.begin()} text="authenticate github" />
     )
+    {/* <div onClick={() => oAuth2.begin()}>
+            authenticate github
+        </div> */}
 }
 
 export default Auth;
