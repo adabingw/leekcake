@@ -38,9 +38,7 @@ export default function Terminal() {
         'Oracle': '.sql',
     };
 
-    /**
-     * getting list of submissions for a questionslug to get the submission id
-     */
+    // getting list of submissions for a questionslug to get the submission id
     let GET_SUB_LIST = gql`
         query submissionList($questionSlug: String!) {
             questionSubmissionList(
@@ -61,9 +59,7 @@ export default function Terminal() {
         }
     `
 
-    /**
-     * take the latest submission and use its id to get the submission details
-     */
+    // take the latest submission and use its id to get the submission details
     let GET_SUB = gql`
         query submissionDetails($submissionId: Int!) {
             submissionDetails(submissionId: $submissionId) {
@@ -170,10 +166,11 @@ export default function Terminal() {
                         let lang = submission["langName"]
                         setExt(languages[lang])
                         setPath(`${path}${languages[lang]}`)
-                        checkfile()
+                        checkfile(`${path}${languages[lang]}`)
+                        let submissionId = submission["id"]
+                        setSub(submissionId)
+                            
                         if (state == 'submit') {
-                            let submissionId = submission["id"]
-                            setSub(submissionId)
                             subRefetch({
                                 submissionId: submissionId
                             })
@@ -212,7 +209,7 @@ export default function Terminal() {
     }, [subData])
 
     /* Try to get file to see if it exists */
-    const checkfile = () => {
+    const checkfile = (p) => {
         chrome.storage.local.get(["github_username"]).then((result) => {
             let username = result.github_username;
             if (username) {
@@ -220,19 +217,17 @@ export default function Terminal() {
                 chrome.storage.local.get(["leekcake_repo"]).then((result) => {
                     let repo = JSON.parse(result.leekcake_repo);
                     if (repo) {
-                        console.log(`github repo ${repo}`)
                         chrome.storage.local.get(["github_token"]).then((result) => {
                             let token = result.github_token;
                             if (token) {
-                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
-                                console.log(`url: ${URL}`)
+                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${p}`;
                             
                                 const xhr = new XMLHttpRequest();
                                 xhr.addEventListener('readystatechange', function () {
                                 if (xhr.readyState === 4) {
                                     if (xhr.status === 200 || xhr.status === 201) {
                                         // file exists
-                                        console.log(`${path} exists`)
+                                        console.log(`${p} exists`)
                                         setWarning(`warning: file already exists. if you submit, you'll be 
                                                     overwriting the existing file. \n
                                                     consider using a different name.`)
@@ -269,15 +264,20 @@ export default function Terminal() {
             document.cookie = `LEETCODE_SESSION=${result["LEETCODE_SESSION"]}; SameSite=None; Secure; HttpOnly`;
             chrome.storage.local.get(["csrftoken"]).then(async (result) => {
                 document.cookie = `csrftoken=${result["csrftoken"]}; SameSite=None; Secure; HttpOnly`;
-                listRefetch({
-                    questionSlug: questionSlug, 
-                })
+                if (listData && sub) {
+                    subRefetch({
+                        submissionId: sub
+                    })
+                } else {
+                    listRefetch({
+                        questionSlug: questionSlug, 
+                    })
+                }
             });
         });
     }
 
     const handleKeyDown = (e) => {
-        // check if link is empty
         if (e.key != 'Enter') return;
         if (link == '') return;
         else {
@@ -290,7 +290,6 @@ export default function Terminal() {
             }
             setQuestion(questionSlug)
             handleSubmit()
-            // fetchSubmissionList(questionSlug)
         }
     }
 
@@ -300,6 +299,44 @@ export default function Terminal() {
 
     const handeRelink = () => {
         navigate('/linkage')
+    }
+
+    const handleLogout = () => {
+        chrome.storage.local.get(["github_token"]).then((result) => {
+            let token = result.github_token;
+            if (token) {
+                let client_id = import.meta.env.VITE_CLIENT_ID
+                const URL = `https://api.github.com/applications/${client_id}/grant`;    
+                const xhr = new XMLHttpRequest();
+                xhr.addEventListener('readystatechange', function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 204) {
+                        chrome.storage.local.set({ github_username: null }, () => {
+                            console.log("wiped github name")
+                        });    
+                        chrome.storage.local.set({ github_token: null }, () => {
+                            console.log("wiped github token");
+                        });    
+                        chrome.storage.local.set({ leekcake_repo: null }, () => {
+                            console.log("wiped github repo")
+                        });
+                        chrome.storage.local.set({ stats: null }, () => {
+                            console.log("wiped stats")
+                        });
+                        navigate('/auth')
+                    } else {
+                        console.log("awww fuck")
+                    }
+                }
+                });
+                xhr.open('DELETE', URL, true);
+                xhr.setRequestHeader('Authorization', `token ${token}`);
+                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                xhr.send();
+            } else {
+                // smth went wrong
+            }
+        })
     }
 
     const handlePathChange = (p) => {
@@ -393,7 +430,7 @@ export default function Terminal() {
                         chrome.storage.local.get(["github_token"]).then((result) => {
                             let token = result.github_token;
                             if (token) {
-                                const URL = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
+                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
                                 let data = {
                                     message: msg,
                                     content: code,
@@ -403,29 +440,30 @@ export default function Terminal() {
                           
                                 const xhr = new XMLHttpRequest();
                                 xhr.addEventListener('readystatechange', function () {
-                                if (xhr.readyState === 4) {
-                                    if (xhr.status === 200 || xhr.status === 201) {
-                                        const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
-                                
-                                        chrome.storage.local.get('stats', (data2) => {
-                                            let { stats } = data2;
-                                            if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
-                                                stats = {};
-                                                stats.sha = {};
-                                            }
-                                            stats.sha[path] = updatedSha; // update sha key.
-                                            chrome.storage.local.set({ stats }, () => {
-                                                console.log(`committed ${path} to github`,);                                
-                                                if (cb !== undefined) {
-                                                    cb();
+                                    if (xhr.readyState === 4) {
+                                        if (xhr.status === 200 || xhr.status === 201) {
+                                            const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
+                                    
+                                            chrome.storage.local.get('stats', (data2) => {
+                                                let { stats } = data2;
+                                                if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
+                                                    stats = {};
+                                                    stats.sha = {};
                                                 }
+                                                stats.sha[path] = updatedSha; // update sha key.
+                                                chrome.storage.local.set({ stats }, () => {
+                                                    console.log(`committed ${path} to github`,);                                
+                                                    if (cb !== undefined) {
+                                                        cb();
+                                                    }
+                                                });
                                             });
-                                        });
+                                        }
                                     }
-                                }
                                 });
                                 xhr.open('PUT', URL, true);
-                                xhr.setRequestHeader('Authorization', `token ${token}`);
+                                // xhr.setRequestHeader('User-Agent', 'request')
+                                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                                 xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
                                 xhr.send(data);
                             } else {
@@ -443,35 +481,42 @@ export default function Terminal() {
 	};
   
 	function uploadGit(code, msg, cb = undefined) {
-        if (token) {
-            chrome.storage.local.get('stats', (s) => {
-                const { stats } = s;
-                let sha = null;
-                if (
-                    stats !== undefined &&
-                    stats.sha !== undefined &&
-                    stats.sha[path] !== undefined
-                ) {
-                    sha = stats.sha[path];
-                }
-
-                if (repo) {
-                    /* Upload to git. */
-                    upload(
-                        code,
-                        sha,
-                        msg,
-                        cb,
-                    );
-                }
-            });
-        }
+        chrome.storage.local.get(["github_username"]).then((result) => {
+            let username = result.github_username;
+            if (username) {
+                console.log(`github user ${username}`)
+                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                    let repo = JSON.parse(result.leekcake_repo);
+                    if (repo) {
+                        chrome.storage.local.get(["github_token"]).then((result) => {
+                            let token = result.github_token;
+                            if (token) {
+                                chrome.storage.local.get('stats', (s) => {
+                                    const { stats } = s;
+                                    let sha = null;
+                                    if (stats && stats.sha && stats.sha[path]) {
+                                        sha = stats.sha[path];
+                                    }
+                                    upload(code, sha, msg, cb,);
+                                });
+                            } else {
+                                // smth went wrong
+                            }
+                        })
+                    } else {
+                        // smth went wrong
+                    }
+                })
+            } else {
+                // smth went wrong
+            }
+        })
 	}
 
     return (
         <div className="flex flex-col h-fit max-h-fit">
             <div className="flex flex-row justify-between">
-                <Button onClick={() => console.log("logout")} text="logout" />
+                <Button onClick={() => handleLogout()} text="logout" />
                 <Button onClick={() => handeRelink()} text="relink repo" />
             </div>
             enter link to leetcode question
