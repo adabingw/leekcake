@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { checkFetcher, gql, useQuery } from '@apollo/client';
+import { Octokit } from "octokit";
 import Button from "./Button";
 
 export default function Terminal() {
@@ -427,45 +428,65 @@ export default function Terminal() {
                 chrome.storage.local.get(["leekcake_repo"]).then((result) => {
                     let repo = JSON.parse(result.leekcake_repo);
                     if (repo) {
-                        chrome.storage.local.get(["github_token"]).then((result) => {
+                        chrome.storage.local.get(["github_token"]).then(async (result) => {
                             let token = result.github_token;
                             if (token) {
-                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
-                                let data = {
-                                    message: msg,
+                                console.log("uploading code...")
+                                console.log(token)
+                                // const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
+                                // let data = {
+                                //     message: msg,
+                                //     content: code,
+                                //     sha: sha,
+                                // };
+                                // data = JSON.stringify(data);
+
+                                const octokit = new Octokit({
+                                    auth: token
+                                })
+                                  
+                                let response = await octokit.request('PUT /repos/${owner}/{repo}/contents/{path}', {
+                                    owner: username,
+                                    repo: repo.name,
+                                    path: path,
+                                    message: `${path} committed`,
                                     content: code,
-                                    sha,
-                                };
-                                data = JSON.stringify(data);
-                          
-                                const xhr = new XMLHttpRequest();
-                                xhr.addEventListener('readystatechange', function () {
-                                    if (xhr.readyState === 4) {
-                                        if (xhr.status === 200 || xhr.status === 201) {
-                                            const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
-                                    
-                                            chrome.storage.local.get('stats', (data2) => {
-                                                let { stats } = data2;
-                                                if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
-                                                    stats = {};
-                                                    stats.sha = {};
-                                                }
-                                                stats.sha[path] = updatedSha; // update sha key.
-                                                chrome.storage.local.set({ stats }, () => {
-                                                    console.log(`committed ${path} to github`,);                                
-                                                    if (cb !== undefined) {
-                                                        cb();
-                                                    }
-                                                });
-                                            });
-                                        }
+                                    headers: {
+                                      "User-Agent": "Mozilla/5.0 (Windows NT 10; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0",
+                                      'X-GitHub-Api-Version': '2022-11-28'
                                     }
-                                });
-                                xhr.open('PUT', URL, true);
-                                // xhr.setRequestHeader('User-Agent', 'request')
-                                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-                                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
-                                xhr.send(data);
+                                })
+
+                                console.log(response)
+                          
+                                // const xhr = new XMLHttpRequest();
+                                // xhr.addEventListener('readystatechange', function () {
+                                //     if (xhr.readyState === 4) {
+                                //         if (xhr.status === 200 || xhr.status === 201) {
+                                //             const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
+                                    
+                                //             chrome.storage.local.get('stats', (data2) => {
+                                //                 let { stats } = data2;
+                                //                 if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
+                                //                     stats = {};
+                                //                     stats.sha = {};
+                                //                 }
+                                //                 stats.sha[path] = updatedSha; // update sha key.
+                                //                 chrome.storage.local.set({ stats }, () => {
+                                //                     console.log(`committed ${path} to github`,);                                
+                                //                     if (cb !== undefined) {
+                                //                         cb();
+                                //                     }
+                                //                 });
+                                //             });
+                                //         }
+                                //     }
+                                // });
+                                // xhr.open('PUT', URL, true);
+                                // // xhr.setRequestHeader('User-Agent', 'request')
+                                // xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                                // xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                                // xhr.send(data);
                             } else {
                                 // smth went wrong
                             }

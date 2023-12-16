@@ -15,7 +15,7 @@ const oAuth2 = {
         this.init();
         let url = `${this.AUTHORIZATION_URL}?client_id=${this.CLIENT_ID}&redirect_uri${this.REDIRECT_URL}&scope=`;
     
-        for (let i = 0; i < this.SCOPES.length; i += 1) {
+        for (let i = 0; i < this.SCOPES.length; i++) {
             url += this.SCOPES[i];
         }
     
