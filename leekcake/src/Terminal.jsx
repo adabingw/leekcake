@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { checkFetcher, gql, useQuery } from '@apollo/client';
 import { Octokit } from "octokit";
+import {Buffer} from 'buffer';
+import axios from 'axios';
 import Button from "./Button";
 
 export default function Terminal() {
@@ -57,7 +59,7 @@ export default function Terminal() {
                     url
                 }
             }
-        }
+        }, 
     `
 
     // take the latest submission and use its id to get the submission details
@@ -74,7 +76,7 @@ export default function Terminal() {
                     questionId
                 }
             }
-        }
+        }, 
     `
 
     const { 
@@ -92,7 +94,8 @@ export default function Terminal() {
             if (graphQLErrors) {
                 setError(`error fetching question. might not be a valid leetcode question`);
             }
-        }
+        }, 
+        fetchPolicy: 'no-cache'
     });
 
     const { 
@@ -110,7 +113,8 @@ export default function Terminal() {
             if (graphQLErrors) {
                 setError(`error fetching question. might not be a valid leetcode question`);
             }
-        }
+        }, 
+        fetchPolicy: 'no-cache'
     });
 
     // if user clears console, set path to filename (default)
@@ -120,7 +124,7 @@ export default function Terminal() {
             setPath(directory)
         }
         if (path.length != 0) {
-            checkfile()
+            checkfile(path)
         }
     }, [path])
 
@@ -149,7 +153,29 @@ export default function Terminal() {
 
     useEffect(() => {
         if (state == 'submit') {
-            fetchSubmissionList(question)
+            if (subData) {
+                console.log(subData)
+                if (subData["submissionDetails"] != null && subData["submissionDetails"]["code"].length != 0) {
+                    let code = subData["submissionDetails"]["code"]
+                    console.log(code)
+                    if (code != null && state == 'submit') {
+                        uploadGit(
+                            window.btoa(encodeURIComponent(code)),
+                            `${question}${ext} commit`,
+                            () => {
+                                console.log("code uploaded!")
+                            },
+                        );
+                    }
+                } else {
+                    console.error("subdata error")
+                    // smth went wrong
+                }
+            } else {
+                console.error("no subdata")
+            }
+            console.log("state is submit")
+            setState('init')
         } else {
             console.log(`new state: ${state}`)
         }
@@ -188,13 +214,16 @@ export default function Terminal() {
     }, [listData])
 
     useEffect(() => {
+        console.log("subdata changed")
         if (subLoading) console.log(`loading`);
         if (subError) console.log(`error fetching ${subError} with variables ${JSON.stringify(subVariables)}`);
         if (subData == undefined || subData == null) console.log("subData null")
         else {
+            console.log(subData)
             if (subData["submissionDetails"] != null && subData["submissionDetails"]["code"].length != 0) {
                 let code = subData["submissionDetails"]["code"]
-                if (code != null) {
+                console.log(code)
+                if (code != null && state == 'submit') {
                     uploadGit(
                         window.btoa(encodeURIComponent(code)),
                         `${question}${ext} commit`,
@@ -204,6 +233,7 @@ export default function Terminal() {
                     );
                 }
             } else {
+                console.log("subdata error")
                 // smth went wrong
             }
         }
@@ -261,11 +291,13 @@ export default function Terminal() {
 
     /* start question fetching after submitting */
     const fetchSubmissionList = async (questionSlug) => {
+        console.log(`fetchsubmission: ${questionSlug}`)
         chrome.storage.local.get(["LEETCODE_SESSION"]).then((result) => {
             document.cookie = `LEETCODE_SESSION=${result["LEETCODE_SESSION"]}; SameSite=None; Secure; HttpOnly`;
             chrome.storage.local.get(["csrftoken"]).then(async (result) => {
                 document.cookie = `csrftoken=${result["csrftoken"]}; SameSite=None; Secure; HttpOnly`;
                 if (listData && sub) {
+                    console.log("sub refetching " + sub)
                     subRefetch({
                         submissionId: sub
                     })
@@ -282,6 +314,7 @@ export default function Terminal() {
         if (e.key != 'Enter') return;
         if (link == '') return;
         else {
+            console.log("keydown enter")
             let linkArr = link.split('/').filter(x => x);
             let questionSlug = ""
             for (var i = 0; i < linkArr.length; i++) {
@@ -303,39 +336,44 @@ export default function Terminal() {
     }
 
     const handleLogout = () => {
-        chrome.storage.local.get(["github_token"]).then((result) => {
+        chrome.storage.local.get(["github_token"]).then(async (result) => {
             let token = result.github_token;
             if (token) {
-                let client_id = import.meta.env.VITE_CLIENT_ID
-                const URL = `https://api.github.com/applications/${client_id}/grant`;    
-                const xhr = new XMLHttpRequest();
-                xhr.addEventListener('readystatechange', function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 204) {
-                        chrome.storage.local.set({ github_username: null }, () => {
-                            console.log("wiped github name")
-                        });    
-                        chrome.storage.local.set({ github_token: null }, () => {
-                            console.log("wiped github token");
-                        });    
-                        chrome.storage.local.set({ leekcake_repo: null }, () => {
-                            console.log("wiped github repo")
-                        });
-                        chrome.storage.local.set({ stats: null }, () => {
-                            console.log("wiped stats")
-                        });
-                        navigate('/auth')
-                    } else {
-                        console.log("awww fuck")
+                let CLIENT_ID = import.meta.env.VITE_CLIENT_ID
+                let CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET
+                const revokeAccess = await axios.delete(
+                    `https://api.github.com/applications/${CLIENT_ID}/grant`,
+                    {
+                      headers: {
+                        Authorization: `Basic ${Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')}`,
+                        Accept: 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28',
+                      },
+                      data: {
+                        access_token: token,
+                      }
                     }
+                );
+                if (revokeAccess.status === 204) {
+                    chrome.storage.local.set({ github_username: null }, () => {
+                        console.log("wiped github name")
+                    });    
+                    chrome.storage.local.set({ github_token: null }, () => {
+                        console.log("wiped github token");
+                    });    
+                    chrome.storage.local.set({ leekcake_repo: null }, () => {
+                        console.log("wiped github repo")
+                    });
+                    chrome.storage.local.set({ stats: null }, () => {
+                        console.log("wiped stats")
+                    });
+                    navigate('/auth')
+                } else {
+                    console.log("awww fuck")
+                    setError('something went wrong. sorry!!!!!!!!!!! \n you can also manually revoke tokens on github')
                 }
-                });
-                xhr.open('DELETE', URL, true);
-                xhr.setRequestHeader('Authorization', `token ${token}`);
-                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
-                xhr.send();
             } else {
-                // smth went wrong
+                setError('something went wrong. sorry!!!!!!!!!!! \n you can also manually revoke tokens on github')
             }
         })
     }
@@ -430,10 +468,12 @@ export default function Terminal() {
                     if (repo) {
                         chrome.storage.local.get(["github_token"]).then(async (result) => {
                             let token = result.github_token;
+                            let CLIENT_ID = import.meta.env.VITE_CLIENT_ID
+                            let CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET
                             if (token) {
                                 console.log("uploading code...")
                                 console.log(token)
-                                // const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
+                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
                                 // let data = {
                                 //     message: msg,
                                 //     content: code,
@@ -441,23 +481,38 @@ export default function Terminal() {
                                 // };
                                 // data = JSON.stringify(data);
 
+                                // const response = await axios.put(URL, {
+                                //       headers: {
+                                //         Authorization: `token ${Buffer.from(token).toString('base64')}`,
+                                //         Accept: 'application/vnd.github+json',
+                                //         'X-GitHub-Api-Version': '2022-11-28',
+                                //       },
+                                //       data: {
+                                //         // access_token: token,
+                                //         message: msg,
+                                //         content: code,
+                                //         sha: sha,
+                                //       }
+                                //     }
+                                // );
                                 const octokit = new Octokit({
                                     auth: token
                                 })
+                                console.log(`URL: ${URL}`)
                                   
-                                let response = await octokit.request('PUT /repos/${owner}/{repo}/contents/{path}', {
-                                    owner: username,
+                                const response = await octokit.request(`PUT /repos/{username}/{repo}/contents/{path}`, {
+                                    username: username,
                                     repo: repo.name,
                                     path: path,
-                                    message: `${path} committed`,
+                                    message: msg,
                                     content: code,
                                     headers: {
-                                      "User-Agent": "Mozilla/5.0 (Windows NT 10; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0",
-                                      'X-GitHub-Api-Version': '2022-11-28'
+                                        'X-GitHub-Api-Version': '2022-11-28'
                                     }
                                 })
-
+                                  
                                 console.log(response)
+                                setState('init')
                           
                                 // const xhr = new XMLHttpRequest();
                                 // xhr.addEventListener('readystatechange', function () {
