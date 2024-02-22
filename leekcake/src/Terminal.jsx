@@ -1,7 +1,7 @@
 /*global chrome*/
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { checkFetcher, gql, useQuery } from '@apollo/client';
+import { gql, useQuery } from '@apollo/client';
 import { Octokit } from "octokit";
 import {Buffer} from 'buffer';
 import axios from 'axios';
@@ -17,6 +17,7 @@ export default function Terminal() {
     const [path, setPath] = useState('');
     const [error, setError] = useState('');
     const [warning, setWarning] = useState('');
+    const [update2, setUpdate] = useState(false);
     const navigate = useNavigate();
 
     const languages = {
@@ -98,6 +99,7 @@ export default function Terminal() {
         fetchPolicy: 'no-cache'
     });
 
+
     const { 
         loading: subLoading, 
         error: subError, 
@@ -159,22 +161,14 @@ export default function Terminal() {
                     let code = subData["submissionDetails"]["code"]
                     console.log(code)
                     if (code != null && state == 'submit') {
-                        uploadGit(
-                            window.btoa(encodeURIComponent(code)),
-                            `${question}${ext} commit`,
+                        uploadGit(window.btoa(code), `${question}${ext} commit`,
                             () => {
                                 console.log("code uploaded!")
                             },
                         );
                     }
-                } else {
-                    console.error("subdata error")
-                    // smth went wrong
                 }
-            } else {
-                console.error("no subdata")
-            }
-            console.log("state is submit")
+            } 
             setState('init')
         } else {
             console.log(`new state: ${state}`)
@@ -208,7 +202,7 @@ export default function Terminal() {
                 }
             } else {
                 // smth went wrong
-                setError(`error fetching question`);
+                setError(`error fetching question. Make sure you are logged in.`);
             }
         }
     }, [listData])
@@ -225,7 +219,7 @@ export default function Terminal() {
                 console.log(code)
                 if (code != null && state == 'submit') {
                     uploadGit(
-                        window.btoa(encodeURIComponent(code)),
+                        window.btoa(code),
                         `${question}${ext} commit`,
                         () => {
                             console.log("code uploaded!")
@@ -262,10 +256,12 @@ export default function Terminal() {
                                         setWarning(`warning: file already exists. if you submit, you'll be 
                                                     overwriting the existing file. \n
                                                     consider using a different name.`)
+                                        setUpdate(true);
                                         return true
                                     } else if (xhr.status == 404) {
                                         // file doesn't exist
                                         setWarning('')
+                                        setUpdate(false);
                                         return false
                                     }
                                 }
@@ -335,6 +331,10 @@ export default function Terminal() {
         navigate('/linkage')
     }
 
+    const handlePAT = () => {
+        navigate('/PAT')
+    }
+
     const handleLogout = () => {
         chrome.storage.local.get(["github_token"]).then(async (result) => {
             let token = result.github_token;
@@ -399,107 +399,71 @@ export default function Terminal() {
     }
 
     /* Main function for updating code to GitHub repo, and callback cb is called if success */
-	const update = (code, sha, msg, cb = undefined,) => {
+	const update = (code, msg, cb = undefined) => {
         chrome.storage.local.get(["github_username"]).then((result) => {
             let username = result.github_username;
             if (username) {
-                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                chrome.storage.local.get(["leekcake_repo"]).then(async (result) => {
                     let repo = JSON.parse(result.leekcake_repo);
                     if (repo) {
-                        chrome.storage.local.get(["github_token"]).then((result) => {
-                            let token = result.github_token;
-                            if (token) {
-                                const URL = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
-                                let data = {
+                        chrome.storage.local.get(["personal_token"]).then(async (result) => {
+                            let personal_token = result.personal_token;
+                            if (personal_token) {
+                                const octokit = new Octokit({
+                                    auth: personal_token
+                                })
+                                const response1 = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+                                    owner: username,
+                                    repo: repo.name,
+                                    path: path,
+                                    headers: {
+                                    'X-GitHub-Api-Version': '2022-11-28'
+                                    }
+                                });
+
+                                let sha2 = "";
+                                
+                                if (response1.status == 200) {
+                                    if (response1.data) sha2 = response1.data.sha;
+                                }
+                                
+                                const response = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+                                    owner: username,
+                                    repo: repo.name,
+                                    path: path,
                                     message: msg,
                                     content: code,
-                                    sha,
-                                };
-                                data = JSON.stringify(data);
-                        
-                                const xhr = new XMLHttpRequest();
-                                xhr.addEventListener('readystatechange', function () {
-                                if (xhr.readyState === 4) {
-                                    if (xhr.status === 200 || xhr.status === 201) {
-                                        const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
-                                
-                                        chrome.storage.local.get('stats', (data2) => {
-                                            let { stats } = data2;
-                                            if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
-                                                stats = {};
-                                                stats.sha = {};
-                                            }
-                                            stats.sha[path] = updatedSha; // update sha key.
-                                            chrome.storage.local.set({ stats }, () => {
-                                                console.log(`committed ${path} to github`,);
-                                                if (cb !== undefined) {
-                                                    cb();
-                                                }
-                                            });
-                                        });
+                                    sha: sha2,
+                                    headers: {
+                                        'X-GitHub-Api-Version': '2022-11-28'
                                     }
-                                }
-                                });
-                                xhr.open('PUT', URL, true);
-                                xhr.setRequestHeader('Authorization', `token ${token}`);
-                                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
-                                xhr.send(data);
-                            } else {
-                                // smth went wrong
+                                })
+                                console.log(response)
+                                if (response.status != 200 && response.status != 201) {
+                                    setError('auth error: check if your personal access token is expired or correct')
+                                }                        
                             }
                         })
-                    } else {
-                        // smth went wrong
                     }
                 })
-            } else {
-                // smth went wrong
             }
         })
 	};
 
     /* Main function for uploading code to GitHub repo, and callback cb is called if success */
-	const upload = (code, sha, msg, cb = undefined,) => {
+	const upload = (code, msg, cb = undefined) => {
         chrome.storage.local.get(["github_username"]).then((result) => {
             let username = result.github_username;
             if (username) {
-                chrome.storage.local.get(["leekcake_repo"]).then((result) => {
+                chrome.storage.local.get(["leekcake_repo"]).then(async (result) => {
                     let repo = JSON.parse(result.leekcake_repo);
                     if (repo) {
-                        chrome.storage.local.get(["github_token"]).then(async (result) => {
-                            let token = result.github_token;
-                            let CLIENT_ID = import.meta.env.VITE_CLIENT_ID
-                            let CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET
-                            if (token) {
-                                console.log("uploading code...")
-                                console.log(token)
-                                const URL = `https://api.github.com/repos/${username}/${repo.name}/contents/${path}`;
-                                // let data = {
-                                //     message: msg,
-                                //     content: code,
-                                //     sha: sha,
-                                // };
-                                // data = JSON.stringify(data);
-
-                                // const response = await axios.put(URL, {
-                                //       headers: {
-                                //         Authorization: `token ${Buffer.from(token).toString('base64')}`,
-                                //         Accept: 'application/vnd.github+json',
-                                //         'X-GitHub-Api-Version': '2022-11-28',
-                                //       },
-                                //       data: {
-                                //         // access_token: token,
-                                //         message: msg,
-                                //         content: code,
-                                //         sha: sha,
-                                //       }
-                                //     }
-                                // );
+                        chrome.storage.local.get(["personal_token"]).then(async (result) => {
+                            let personal_token = result.personal_token;
+                            if (personal_token) {
                                 const octokit = new Octokit({
-                                    auth: token
+                                    auth: personal_token
                                 })
-                                console.log(`URL: ${URL}`)
-                                  
                                 const response = await octokit.request(`PUT /repos/{username}/{repo}/contents/{path}`, {
                                     username: username,
                                     repo: repo.name,
@@ -510,48 +474,15 @@ export default function Terminal() {
                                         'X-GitHub-Api-Version': '2022-11-28'
                                     }
                                 })
-                                  
                                 console.log(response)
+                                if (response.status != 200 && response.status != 201) {
+                                    setError('auth error: check if your personal access token is expired or correct')
+                                }                        
                                 setState('init')
-                          
-                                // const xhr = new XMLHttpRequest();
-                                // xhr.addEventListener('readystatechange', function () {
-                                //     if (xhr.readyState === 4) {
-                                //         if (xhr.status === 200 || xhr.status === 201) {
-                                //             const updatedSha = JSON.parse(xhr.responseText).content.sha; // get updated SHA.
-                                    
-                                //             chrome.storage.local.get('stats', (data2) => {
-                                //                 let { stats } = data2;
-                                //                 if (stats == null || Object.keys(stats).length === 0 || stats === undefined) {
-                                //                     stats = {};
-                                //                     stats.sha = {};
-                                //                 }
-                                //                 stats.sha[path] = updatedSha; // update sha key.
-                                //                 chrome.storage.local.set({ stats }, () => {
-                                //                     console.log(`committed ${path} to github`,);                                
-                                //                     if (cb !== undefined) {
-                                //                         cb();
-                                //                     }
-                                //                 });
-                                //             });
-                                //         }
-                                //     }
-                                // });
-                                // xhr.open('PUT', URL, true);
-                                // // xhr.setRequestHeader('User-Agent', 'request')
-                                // xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-                                // xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
-                                // xhr.send(data);
-                            } else {
-                                // smth went wrong
                             }
                         })
-                    } else {
-                        // smth went wrong
-                    }
+                    } 
                 })
-            } else {
-                // smth went wrong
             }
         })
 	};
@@ -567,25 +498,13 @@ export default function Terminal() {
                         chrome.storage.local.get(["github_token"]).then((result) => {
                             let token = result.github_token;
                             if (token) {
-                                chrome.storage.local.get('stats', (s) => {
-                                    const { stats } = s;
-                                    let sha = null;
-                                    if (stats && stats.sha && stats.sha[path]) {
-                                        sha = stats.sha[path];
-                                    }
-                                    upload(code, sha, msg, cb,);
-                                });
-                            } else {
-                                // smth went wrong
-                            }
+                                if (update2) update(code, msg, cb);
+                                else upload(code, msg, cb,);
+                            } 
                         })
-                    } else {
-                        // smth went wrong
-                    }
+                    } 
                 })
-            } else {
-                // smth went wrong
-            }
+            } 
         })
 	}
 
@@ -594,6 +513,7 @@ export default function Terminal() {
             <div className="flex flex-row justify-between">
                 <Button onClick={() => handleLogout()} text="logout" />
                 <Button onClick={() => handeRelink()} text="relink repo" />
+                <Button onClick={() => handlePAT()} text="change PAT" />
             </div>
             enter link to leetcode question
             <input type="text" placeholder="leetcode q" 
@@ -608,9 +528,7 @@ export default function Terminal() {
                 <div className="text-red-500">{error}</div>
                 <div className="text-orange-500">{warning}</div>
             </div>
-            
             }
-            
         </div>
     )
 }

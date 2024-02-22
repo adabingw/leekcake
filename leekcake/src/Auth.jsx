@@ -30,9 +30,6 @@ function Auth() {
     return (
         <Button onClick={() => oAuth2.begin()} text="authenticate github" />
     )
-    {/* <div onClick={() => oAuth2.begin()}>
-            authenticate github
-        </div> */}
 }
 
 export default Auth;

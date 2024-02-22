@@ -8,6 +8,7 @@ import './App.css'
 import Auth from './Auth';
 import Home from './Home';
 import Linkage from './Linkage';
+import PAT from './PAT';
 
 function App() {
 
@@ -19,24 +20,31 @@ function App() {
 			if (token === null || token === undefined) {
 				navigate('/auth')
 			} else {
-				const AUTHENTICATION_URL = 'https://api.github.com/user';
-				const xhr = new XMLHttpRequest();
-				xhr.addEventListener('readystatechange', function () {
-					if (xhr.readyState === 4) {
-						if (xhr.status === 200) {
-							checkRepo()
-						} else if (xhr.status === 401) {
-							chrome.storage.local.set({ github_token: null }, () => {
-								console.log("bad auth, redirecting...");
-								// back to auth
-								navigate('/auth')
-							});
-						}
+				chrome.storage.local.get('personal_token', (data) => {
+					const pat = data.personal_token;
+					if (pat == null || pat === undefined) {
+						navigate('/PAT');
+					} else {
+						const AUTHENTICATION_URL = 'https://api.github.com/user';
+						const xhr = new XMLHttpRequest();
+						xhr.addEventListener('readystatechange', function () {
+							if (xhr.readyState === 4) {
+								if (xhr.status === 200) {
+									checkRepo()
+								} else if (xhr.status === 401) {
+									chrome.storage.local.set({ github_token: null }, () => {
+										console.log("bad auth, redirecting...");
+										// back to auth
+										navigate('/auth')
+									});
+								}
+							}
+						});
+						xhr.open('GET', AUTHENTICATION_URL, true);
+						xhr.setRequestHeader('Authorization', `token ${token}`);
+						xhr.send();
 					}
 				});
-				xhr.open('GET', AUTHENTICATION_URL, true);
-				xhr.setRequestHeader('Authorization', `token ${token}`);
-				xhr.send();
 			}
 		});
 	}, [])
@@ -59,6 +67,7 @@ function App() {
 			<Route path="/terminal" element={<Terminal />} />
 			<Route path="/linkage" element={<Linkage />} />
 			<Route path="/auth" element={<Auth />} />
+			<Route path="/PAT" element={<PAT />} />
 			<Route path="*" element={<Home />} />
 		</Routes>
     )
