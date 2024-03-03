@@ -18,6 +18,7 @@ export default function Terminal() {
     const [error, setError] = useState('');
     const [warning, setWarning] = useState('');
     const [update2, setUpdate] = useState(false);
+    const [message, setMessage] = useState('');
     const navigate = useNavigate();
 
     const languages = {
@@ -132,6 +133,7 @@ export default function Terminal() {
 
     // when user puts in link, stitch link to get problem name
     useEffect(() => {
+        setMessage('')
         if (!link.includes('leetcode.com/problems')) {
             setError('not a valid leetcode link')
         } else {
@@ -311,16 +313,20 @@ export default function Terminal() {
         if (link == '') return;
         else {
             console.log("keydown enter")
-            let linkArr = link.split('/').filter(x => x);
-            let questionSlug = ""
-            for (var i = 0; i < linkArr.length; i++) {
-                if (linkArr[i] == 'problems' && linkArr.length > i + 1) {
-                    questionSlug = linkArr[i + 1]
-                }
-            }
-            setQuestion(questionSlug)
-            handleSubmit()
+            submit()
         }
+    }
+
+    const submit = () => {
+        let linkArr = link.split('/').filter(x => x);
+        let questionSlug = ""
+        for (var i = 0; i < linkArr.length; i++) {
+            if (linkArr[i] == 'problems' && linkArr.length > i + 1) {
+                questionSlug = linkArr[i + 1]
+            }
+        }
+        setQuestion(questionSlug)
+        handleSubmit()
     }
 
     const handleSubmit = () => {
@@ -441,7 +447,9 @@ export default function Terminal() {
                                 console.log(response)
                                 if (response.status != 200 && response.status != 201) {
                                     setError('auth error: check if your personal access token is expired or correct')
-                                }                        
+                                } else if (response.status == 200 || response.status == 201) {
+                                    setMessage('success!!!')
+                                }
                             }
                         })
                     }
@@ -477,7 +485,10 @@ export default function Terminal() {
                                 console.log(response)
                                 if (response.status != 200 && response.status != 201) {
                                     setError('auth error: check if your personal access token is expired or correct')
-                                }                        
+                                    
+                                } else if (response.status == 200 || response.status == 201) {
+                                    setMessage('success!!!')
+                                }      
                                 setState('init')
                             }
                         })
@@ -525,8 +536,10 @@ export default function Terminal() {
                     className="focus:outline-none px-3 py-2 bg-inherit" onKeyDown={(e) => handleKeyDown(e)}
                         onChange={(e) => handlePathChange(`${e.target.value}`)}
                     />
+                <Button onClick={() => submit()} text="submit" />
                 <div className="text-red-500">{error}</div>
                 <div className="text-orange-500">{warning}</div>
+                <div className="text-green-500">{message}</div>
             </div>
             }
         </div>
