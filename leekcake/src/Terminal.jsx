@@ -19,6 +19,7 @@ export default function Terminal() {
     const [warning, setWarning] = useState('');
     const [update2, setUpdate] = useState(false);
     const [message, setMessage] = useState('');
+    const [commit, setCommit] = useState('');
     const navigate = useNavigate();
 
     const languages = {
@@ -163,7 +164,7 @@ export default function Terminal() {
                     let code = subData["submissionDetails"]["code"]
                     console.log(code)
                     if (code != null && state == 'submit') {
-                        uploadGit(window.btoa(code), `${question}${ext} commit`,
+                        uploadGit(window.btoa(code), commit,
                             () => {
                                 console.log("code uploaded!")
                             },
@@ -192,22 +193,24 @@ export default function Terminal() {
                         checkfile(`${path}${languages[lang]}`)
                         let submissionId = submission["id"]
                         setSub(submissionId)
-                            
                         if (state == 'submit') {
                             subRefetch({
                                 submissionId: submissionId
                             })
                         }
                     } else {
-                        // latest submission was not accepted
+                        setError(`error: latest submission might not have been accepted`);
                     }
                 }
             } else {
-                // smth went wrong
                 setError(`error fetching question. Make sure you are logged in.`);
             }
         }
     }, [listData])
+
+    useEffect(() => {
+        setCommit(`${question}${ext} commit`)
+    }, [question, ext])
 
     useEffect(() => {
         console.log("subdata changed")
@@ -222,7 +225,7 @@ export default function Terminal() {
                 if (code != null && state == 'submit') {
                     uploadGit(
                         window.btoa(code),
-                        `${question}${ext} commit`,
+                        commit,
                         () => {
                             console.log("code uploaded!")
                         },
@@ -230,7 +233,6 @@ export default function Terminal() {
                 }
             } else {
                 console.log("subdata error")
-                // smth went wrong
             }
         }
     }, [subData])
@@ -273,15 +275,15 @@ export default function Terminal() {
                                 xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
                                 xhr.send();
                             } else {
-                                // smth went wrong
+                                setError(`error checkfile token undefined`);
                             }
                         })
                     } else {
-                        // smth went wrong
+                        setError(`error fetching repo`);
                     }
                 })
             } else {
-                // smth went wrong
+                setError(`error fetching username`);
             }
         })
     }
@@ -535,6 +537,11 @@ export default function Terminal() {
                 <input type="text" placeholder={`${path}`} 
                     className="focus:outline-none px-3 py-2 bg-inherit" onKeyDown={(e) => handleKeyDown(e)}
                         onChange={(e) => handlePathChange(`${e.target.value}`)}
+                    />
+                enter commit messsage. empty is default.
+                <input type="text" placeholder={`${commit}`} 
+                    className="focus:outline-none px-3 py-2 bg-inherit" onKeyDown={(e) => handleKeyDown(e)}
+                        onChange={(e) => setCommit(`${e.target.value}`)}
                     />
                 <Button onClick={() => submit()} text="submit" />
                 <div className="text-red-500">{error}</div>
